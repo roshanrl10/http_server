@@ -1,45 +1,107 @@
-import socket  # noqa: F401
-
-CRLF = "\r\n"
-
-
-class HTTPRequest:
-    def __init__(self, data: bytes):
-        self.data = data.decode()
-        self.method, self.path, self.protocol = self.data.split(CRLF)[
-            0].split()
+import socket
+import threading
 
 
-class HTTPResponse:
-    def __init__(self, status_code: int):
-        self.status_code = status_code
+def handle_client(client_socket):
+    print("new client connected")
+    request = client_socket.recv(1024).decode()
+    print("request received :")
+    print(request)
+    # parse request line
+    request_line = request.split("\r\n")[0]
+    method, path, version = request_line.split(" ")
 
-    def __str__(self):
-        STATUS_CODE_STRINGS = {
-            200: "OK",
-            404: "Not Found",
-        }
+    # simple routing
+    if path == "/":
+        with open("index.html", "r") as file:
+            body = file.read()
 
-        return f"HTTP/1.1 {self.status_code} {STATUS_CODE_STRINGS[self.status_code]}{CRLF}{CRLF}"
+    elif path == "/home":
+        body = " welcome to home page"
 
+    elif path == "/about":
+        body = "welcome to about page. This is build with your trust"
 
-def main():
-    server_socket = socket.create_server(("localhost", 4221), reuse_port=True)
+    else:
+        body = "404 not found"
 
-    # Start listening for incoming connections
-    client_socket, client_address = server_socket.accept()
+    response = (
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/plain\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        "\r\n"
+        f"{body}"
+    )
 
-    # Receive data from the client and parse the HTTP request
-    data = client_socket.recv(1024)
-    request = HTTPRequest(data)
+    client_socket.send(response.encode())
 
-    # Make a decision based on the path of the request
-    response = HTTPResponse(200) if request.path == "/" else HTTPResponse(404)
-
-    # Send the response back to the client
-    client_socket.sendall(response.__str__().encode())
     client_socket.close()
 
+    print("Client disconnected\n")
 
-if __name__ == "__main__":
-    main()
+# this creeates a tcp socket
+
+# server_socket = socket.socket(
+#     socket.AF_INET, socket.SOCK_STREAM)  # AF_INET=ipv4 address SOCK_STREAM=tcp protocol
+# server_socket.bind(("localhost", 8080))  # bind address with 8080 port
+# # This turns the socket into a server socket. 5 means the maximum qued connection
+# server_socket.listen(5)
+# print("Server running on http://localhost:8080")
+
+
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.bind(("localhost", 8080))
+server_socket.listen(5)
+print("server running on http://localhost:8080")
+
+while True:
+    client_socket, address = server_socket.accept()
+    # create a new thread for each client
+    thread = threading.Thread(
+        target=handle_client,
+        args=(client_socket,))
+    thread.start()
+
+# while True:
+
+#     client_socket, address = server_socket.accept()
+
+#     request = client_socket.recv(1024).decode()
+
+#     lines = request.split("\r\n")
+
+#     request_line = lines[0]
+
+#     method, path, version = request_line.split(" ")
+
+#     headers = {}
+
+#     for line in lines[1:]:
+#         if line == "":
+#             break
+
+#         key, value = line.split(": ", 1)
+#         headers[key] = value
+
+#     print("Method:", method)
+#     print("Path:", path)
+
+#     print("\nHeaders:")
+#     for k, v in headers.items():
+#         print(k, ":", v)
+
+    # if path == "/":
+    #     with open("index.html", "r") as file:
+    #         body = file.read()
+
+#     response = (
+#         "HTTP/1.1 200 OK\r\n"
+#         "Content-Type: text/html\r\n"
+#         f"Content-Length: {len(body)}\r\n"
+#         "\r\n"
+#         f"{body}"
+#     )
+
+#     client_socket.send(response.encode())
+
+#     client_socket.close()
